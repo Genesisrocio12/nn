@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { useProportionalResize } from '../hooks/useProportionalResize';
+import { useProcessingStates } from '../hooks/useProcessingStates';
 import logoImage from './image/TechResources.png';
 
 const ImageProcessor = ({ onNavigate }) => {
@@ -13,39 +14,54 @@ const ImageProcessor = ({ onNavigate }) => {
   const [dragActive, setDragActive] = useState(false);
   const [error, setError] = useState('');
   const [switchProcessing, setSwitchProcessing] = useState(false);
-
   const fileInputRef = useRef(null);
   const API_BASE_URL = 'http://localhost:5000/api';
 
-  // Hook simplificado para auto-completado
   const {
     width,
     height,
     originalDimensions,
     isLoadingDimensions,
+    isLocked,
+    fileCount,
     handleWidthChange,
     handleHeightChange,
-    handleWidthChangeOnly,
-    handleHeightChangeOnly,
+    toggleLock,
+    updateFileCount,
     loadImageDimensions,
+    makeSquare,
     resetDimensions,
     applyPreset,
     clearDimensions,
     hasValidDimensions,
-    makeSquare
+    shouldAutoComplete,
+    canToggleLock,
+    editingMode
   } = useProportionalResize();
 
-  // Estado para modo de edición
-  const [editingMode, setEditingMode] = useState('proportional'); // 'proportional' o 'free'
+  const {
+    processingFiles,
+    isProcessing,
+    processFiles,
+    clearProcessing,
+    setProcessingFiles,
+    setIsProcessing,
+    getStats,
+    getStateMessage,
+    PROCESSING_STATES
+  } = useProcessingStates();
 
-  // Cargar dimensiones cuando se obtiene sessionId
+  // Actualizar el contador de archivos cuando cambien los uploadedFiles
+  useEffect(() => {
+    updateFileCount(uploadedFiles.length);
+  }, [uploadedFiles.length, updateFileCount]);
+
   useEffect(() => {
     if (sessionId && uploadedFiles.length > 0) {
-      loadImageDimensions(sessionId);
+      loadImageDimensions(sessionId, uploadedFiles.length);
     }
   }, [sessionId, uploadedFiles.length, loadImageDimensions]);
 
-  // Auto-procesar cuando se cargan archivos o cambian switches
   useEffect(() => {
     if (uploadedFiles.length > 0 && sessionId && !loading && !processing && !switchProcessing) {
       setSwitchProcessing(true);
@@ -59,7 +75,6 @@ const ImageProcessor = ({ onNavigate }) => {
     }
   }, [backgroundRemoval, resize, uploadedFiles.length]);
 
-  // Manejar drag events
   const handleDrag = useCallback((e) => {
     e.preventDefault();
     e.stopPropagation();
@@ -70,7 +85,6 @@ const ImageProcessor = ({ onNavigate }) => {
     }
   }, []);
 
-  // Manejar drop
   const handleDrop = useCallback((e) => {
     e.preventDefault();
     e.stopPropagation();
@@ -81,14 +95,12 @@ const ImageProcessor = ({ onNavigate }) => {
     }
   }, []);
 
-  // Manejar input de archivos
   const handleFileInput = (e) => {
     if (e.target.files && e.target.files.length > 0) {
       handleFiles(Array.from(e.target.files));
     }
   };
 
-  // Procesar archivos cargados
   const handleFiles = async (files) => {
     setError('');
     setLoading(true);
@@ -114,7 +126,14 @@ const ImageProcessor = ({ onNavigate }) => {
       setUploadedFiles(prev => [...prev, ...data.files]);
       setSessionId(data.session_id);
       
-      // Auto-procesar después de cargar
+      // Iniciar simulación de procesamiento inmediatamente
+      await processFiles(data.files, {
+        background_removal: backgroundRemoval,
+        resize: resize,
+        width: width ? parseInt(width) : null,
+        height: height ? parseInt(height) : null,
+      });
+      
       setTimeout(() => {
         handleProcessWithSession(data.session_id);
       }, 500);
@@ -131,16 +150,22 @@ const ImageProcessor = ({ onNavigate }) => {
     }
   };
 
-  // Procesar imágenes
   const handleProcess = async () => {
     if (!sessionId || uploadedFiles.length === 0) {
       setError('No hay archivos para procesar');
       return;
     }
+    
+    await processFiles(uploadedFiles, {
+      background_removal: backgroundRemoval,
+      resize: resize,
+      width: width ? parseInt(width) : null,
+      height: height ? parseInt(height) : null,
+    });
+    
     return await handleProcessWithSession(sessionId);
   };
 
-  // Procesar con session específica
   const handleProcessWithSession = async (currentSessionId) => {
     setError('');
     setProcessing(true);
@@ -166,17 +191,51 @@ const ImageProcessor = ({ onNavigate }) => {
       }
 
       const data = await response.json();
+      
+      setProcessingFiles(prev => 
+        prev.map(file => {
+          const result = data.results.find(r => r.id === file.id);
+          if (result && result.success) {
+            return {
+              ...file,
+              state: PROCESSING_STATES.COMPLETED,
+              progress: 100,
+              currentSize: result.final_size || file.originalSize,
+              reductionPercentage: result.size_reduction || 0,
+              operations: result.operations || [],
+              preview: result.preview_url || file.preview
+            };
+          } else if (result && !result.success) {
+            return {
+              ...file,
+              state: PROCESSING_STATES.ERROR,
+              error: result.message
+            };
+          }
+          return file;
+        })
+      );
+      
       setProcessedResults(data.results);
       
     } catch (err) {
       setError(err.message);
       console.error('Error processing images:', err);
+      
+      setProcessingFiles(prev => 
+        prev.map(file => ({
+          ...file,
+          state: PROCESSING_STATES.ERROR,
+          error: err.message
+        }))
+      );
+      
     } finally {
       setProcessing(false);
+      setIsProcessing(false);
     }
   };
 
-  // Descargar resultados
   const handleDownload = async () => {
     if (!sessionId) {
       setError('No hay archivos para descargar');
@@ -185,29 +244,48 @@ const ImageProcessor = ({ onNavigate }) => {
 
     try {
       const response = await fetch(`${API_BASE_URL}/download/${sessionId}`);
+      
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error || 'Error descargando archivos');
+      }
+
+      const contentType = response.headers.get('content-type');
+      const contentDisposition = response.headers.get('content-disposition');
+  
+      let filename = 'archivo_procesado';
+      if (contentDisposition) {
+        const match = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+        if (match && match[1]) {
+          filename = match[1].replace(/['"]/g, '');
+        }
+      } else {
+        const successfulCount = processedResults.filter(r => r.success).length;
+        if (successfulCount === 1) {
+          const singleResult = processedResults.find(r => r.success);
+          filename = singleResult?.processed_name || 'imagen_procesada.png';
+        } else {
+          filename = `imagenes_procesadas_${Date.now()}.zip`;
+        }
       }
 
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      
-      const contentDisposition = response.headers.get('content-disposition');
-      const filename = contentDisposition 
-        ? contentDisposition.split('filename=')[1].replace(/"/g, '')
-        : `imagenes_procesadas_${Date.now()}.zip`;
-      
       a.download = filename;
+      
       document.body.appendChild(a);
       a.click();
+      
       document.body.removeChild(a);
       window.URL.revokeObjectURL(url);
 
+      console.log(`Descarga completada: ${filename} (${contentType})`);
+
     } catch (err) {
       setError(err.message);
+      console.error('Error en descarga:', err);
     }
   };
 
@@ -221,13 +299,15 @@ const ImageProcessor = ({ onNavigate }) => {
     setSessionId(null);
     setError('');
     setSwitchProcessing(false);
-    clearDimensions(); // Limpiar también las dimensiones
+    clearDimensions();
+    clearProcessing();
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
   };
 
-  const shouldShowResults = processedResults.length > 0;
+  const shouldShowResults = processedResults.length > 0 || processingFiles.length > 0;
+  const stats = getStats();
 
   const handleBackgroundRemovalToggle = () => {
     if (!processing && !switchProcessing) {
@@ -240,7 +320,6 @@ const ImageProcessor = ({ onNavigate }) => {
       setResize(!resize);
     }
   };
-
   return (
     <div className="min-h-screen app-background">
       {/* Header */}
@@ -273,6 +352,9 @@ const ImageProcessor = ({ onNavigate }) => {
       {/* Contenido principal */}
       <main className="processor-main">
         <div className="processor-container">
+          <div className="processor-page-header">
+            {/* Aqui va una imagen dejame no toques; dejame le mensaje */}
+          </div>
           <div className="processor-title-section">
             <h2 className="processor-main-title">Procesador de Imágenes</h2>
             <p className="processor-main-subtitle">
@@ -280,17 +362,10 @@ const ImageProcessor = ({ onNavigate }) => {
             </p>
           </div>
 
-          {/* Mensajes de estado */}
-          {error && (
-            <div className="message-error">
-              {error}
-            </div>
-          )}
-
+          
           {/* Cuadrícula de Contenido */}
-          <div className="processor-content-grid">
-            
-            {/* Sección de carga */}
+         <div className="processor-content-grid">
+          
             <div className="processor-upload-section">
               <div 
                 className={`processor-upload-area ${dragActive ? 'drag-active' : ''}`}
@@ -300,10 +375,11 @@ const ImageProcessor = ({ onNavigate }) => {
                 onDrop={handleDrop}
               >
                 <div className="processor-upload-icon">
+                 {/* Aqui va una imagen dejame no toques; dejame le mensaje */}
                   {loading ? (
                     <div className="loading-icon">⏳ Cargando...</div>
                   ) : (
-                    <div className="folder-icon">📁</div>
+                    <div className="folder-icon"></div>
                   )}
                 </div>
                 <h3 className="processor-upload-title">
@@ -323,7 +399,7 @@ const ImageProcessor = ({ onNavigate }) => {
                   <button 
                     className="processor-select-files-btn"
                     onClick={openFileSelector}
-                    disabled={loading}
+                    disabled={loading || isProcessing}
                   >
                     {uploadedFiles.length > 0 ? 'Agregar Más' : 'Seleccionar Archivos'}
                   </button>
@@ -332,12 +408,19 @@ const ImageProcessor = ({ onNavigate }) => {
                     <button 
                       className="processor-clear-btn"
                       onClick={clearFiles}
-                      disabled={loading || processing || switchProcessing}
+                      disabled={loading || processing || switchProcessing || isProcessing}
                     >
                       Resetear
                     </button>
                   )}
                 </div>
+
+                {/* Mensajes de estado */}
+                {error && (
+                  <div className="message-error">
+                    {error}
+                  </div>
+                )}
 
                 <input
                   ref={fileInputRef}
@@ -354,14 +437,13 @@ const ImageProcessor = ({ onNavigate }) => {
             <div className="processor-options-section">
               <h3 className="processor-options-title">Opciones de Procesamiento</h3>
               
-              {/* Opción eliminar fondo */}
               <div className={`processor-option-card ${backgroundRemoval ? 'active' : ''}`}>
                 <div className="processor-option-content">
                   <div className="processor-option-text">
                     <h4 className="processor-option-title">
                       Eliminar Fondo
                       {switchProcessing && backgroundRemoval && (
-                        <span className="processing-indicator"> ⏳</span>
+                        <span className="processing-indicator"> ↻ </span>
                       )}
                     </h4>
                     <p className="processor-option-description">
@@ -369,33 +451,32 @@ const ImageProcessor = ({ onNavigate }) => {
                     </p>
                   </div>
                   <div className="processor-option-toggle">
-                    <div 
-                      className={`processor-toggle ${backgroundRemoval ? 'processor-toggle-active' : ''} ${(processing || switchProcessing) ? 'disabled' : ''}`}
+                   <div 
+                      className={`processor-toggle ${backgroundRemoval ? 'processor-toggle-active' : ''} ${(processing || switchProcessing || isProcessing) ? 'disabled' : ''}`}
                       onClick={handleBackgroundRemovalToggle}
                     >
-                      <div className="processor-toggle-slider"></div>
+                      <div className="processor-toggle-slider"> </div>
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* Opción redimensionar */}
               <div className={`processor-option-card ${resize ? 'active' : ''}`}>
                 <div className="processor-option-content">
                   <div className="processor-option-text">
                     <h4 className="processor-option-title">
                       Redimensionar
                       {switchProcessing && resize && (
-                        <span className="processing-indicator"> ⏳</span>
+                        <span className="processing-indicator"> ↺ </span>
                       )}
                     </h4>
                     <p className="processor-option-description">
-                      Ajusta las dimensiones automáticamente
+                      Ajusta las dimensiones de la imagen
                     </p>
                   </div>
                   <div className="processor-option-toggle">
                     <div 
-                      className={`processor-toggle ${resize ? 'processor-toggle-active' : ''} ${(processing || switchProcessing) ? 'disabled' : ''}`}
+                      className={`processor-toggle ${resize ? 'processor-toggle-active' : ''} ${(processing || switchProcessing || isProcessing) ? 'disabled' : ''}`}
                       onClick={handleResizeToggle}
                     >
                       <div className="processor-toggle-slider"></div>
@@ -404,182 +485,259 @@ const ImageProcessor = ({ onNavigate }) => {
                 </div>
               </div>
 
-              {/* Panel de dimensiones - Solo cuando resize está ON */}
-              {resize && (
+          {/* Dimensiones personalizadas - Solo aparece cuando resize está ON */}
+          {resize && (
                 <div className="dimensions-panel">
-                  <h4 className="dimensions-title">Nuevas Dimensiones</h4>
+                  <div className="dimensions-header">
+                    <h4 className="dimensions-title">Nuevas Dimensiones</h4>
+                    
+                    <div className="file-status">
+                      {fileCount === 1 ? (
+                        <span className="file-count single">🖼️ 1 imagen</span>
+                      ) : (
+                        <span className="file-count multiple">🖼️ {fileCount} imágenes</span>
+                      )}
+                    </div>
+                  </div>
                   
-                  {/* Info de imagen original */}
-                  {hasValidDimensions && (
+                  {/*hasValidDimensions && fileCount === 1 && (
                     <div className="original-info">
                       <span className="info-label">Original:</span>
                       <span className="info-value">
                         {originalDimensions.width} × {originalDimensions.height} px
                       </span>
                     </div>
-                  )}
+                  )*/}
 
                   {isLoadingDimensions && (
                     <div className="loading-info">
-                      Analizando imagen...
+                      Analizando imagen{fileCount > 1 ? 'es' : ''}...
                     </div>
                   )}
 
-                  {/* Modo de edición */}
                   <div className="editing-mode">
-                    <div className="mode-tabs">
-                      <button 
-                        className={`mode-tab ${editingMode === 'proportional' ? 'active' : ''}`}
-                        onClick={() => setEditingMode('proportional')}
-                      >
-                        Proporcional
-                      </button>
-                      <button 
-                        className={`mode-tab ${editingMode === 'free' ? 'active' : ''}`}
-                        onClick={() => setEditingMode('free')}
-                      >
-                        Libre
-                      </button>
+                    <div className="mode-header">
+                      <div className="mode-info">
+                        <span className="mode-label">
+                          {editingMode === 'proportional' ? 'Proporcional' : 'Libre'}
+                        </span>
+                        {fileCount > 1 && (
+                          <span className="multi-notice">Múltiples imágenes</span>
+                        )}
+                      </div>
+                      
+                      {canToggleLock && (
+                        <button 
+                          className={`lock-button ${isLocked ? 'locked' : 'unlocked'}`}
+                          onClick={toggleLock}
+                          disabled={processing || switchProcessing || isLoadingDimensions || isProcessing}
+                          title={isLocked ? 'Abrir candado (edición libre)' : 'Cerrar candado (mantener proporción)'}
+                        >
+                          {isLocked ? '🔒' : '🔓'}
+                        </button>
+                      )}
                     </div>
+                    
                     <p className="mode-description">
-                      {editingMode === 'proportional' 
-                        ? 'Escribe un valor y el otro se auto-completa' 
-                        : 'Edita ambos campos independientemente'
-                      }
+                      {fileCount === 1 ? (
+                        isLocked 
+                          ? 'Escribe un valor y el otro se auto-completa (candado cerrado)' 
+                          : 'Edita ambos campos independientemente (candado abierto)'
+                      ) : (
+                        'Con múltiples imágenes puedes usar cualquier dimensión'
+                      )}
                     </p>
                   </div>
 
-                  {/* Inputs de dimensiones */}
-                  <div className="dimensions-inputs">
+                  <div className={`dimensions-inputs ${editingMode}`}>
                     <div className="input-field">
-                      <label>Ancho (px)</label>
+                      <label>
+                        Ancho (px)
+                        {shouldAutoComplete && (
+                          <span className="auto-indicator">🔗</span>
+                        )}
+                      </label>
                       <input
                         type="number"
                         value={width}
-                        onChange={(e) => 
-                          editingMode === 'proportional' 
-                            ? handleWidthChange(e.target.value)
-                            : handleWidthChangeOnly(e.target.value)
-                        }
-                        placeholder="Ej: 400"
-                        disabled={processing || switchProcessing || isLoadingDimensions}
+                        onChange={(e) => handleWidthChange(e.target.value)}
+                        placeholder={fileCount === 1 ? "Ej: 400" : " Ej: 600"}
+                        disabled={processing || switchProcessing || isLoadingDimensions || isProcessing}
                         className="dimension-input"
                       />
                     </div>
                     
                     <div className="input-field">
-                      <label>Alto (px)</label>
+                      <label>
+                        Alto (px)
+                        {shouldAutoComplete && (
+                          <span className="auto-indicator">🔗</span>
+                        )}
+                      </label>
                       <input
                         type="number"
                         value={height}
-                        onChange={(e) => 
-                          editingMode === 'proportional' 
-                            ? handleHeightChange(e.target.value)
-                            : handleHeightChangeOnly(e.target.value)
-                        }
-                        placeholder="Ej: 300"
-                        disabled={processing || switchProcessing || isLoadingDimensions}
+                        onChange={(e) => handleHeightChange(e.target.value)}
+                        placeholder={fileCount === 1 ? "Ej: 300" : "Ej: 600"}
+                        disabled={processing || switchProcessing || isLoadingDimensions || isProcessing}
                         className="dimension-input"
                       />
                     </div>
                   </div>
 
-                  {/* Botón procesar manual */}
-                  {uploadedFiles.length > 0 && !switchProcessing && (
-                    <button 
-                      className="process-btn"
-                      onClick={handleProcess}
-                      disabled={processing || loading}
-                    >
-                      {processing ? 'Procesando...' : 'Procesar Imágenes'}
-                    </button>
+
+                  {uploadedFiles.length > 0 && !switchProcessing && !isProcessing && (
+                    <div className="manual-process-section">
+                      {(!width || !height) && (
+                        <div className="manual-notice">
+                          <span className="notice-icon">⚠️</span>
+                          <span className="notice-text">
+                            Configura las dimensiones y presiona procesar
+                          </span>
+                        </div>
+                      )}
+                      <button 
+                        className="process-btn manual"
+                        onClick={handleProcess}
+                        disabled={processing || loading || !width || !height || isProcessing}
+                      >
+                        {processing || isProcessing ? 'Procesando...' : 'Procesar Imágenes'}
+                      </button>
+                    </div>
                   )}
                 </div>
               )}
-              </div>
             </div>
+          </div>
 
-          {/* Sección de Resultados */}
+          {/* Sección de Resultados - Solo aparece cuando hay switches activos y resultados */}
           {shouldShowResults && (
             <div className="processor-results-section">
               <div className="processor-results-header">
                 <div className="processor-results-header-left">
-                  <div className="processor-results-icon">🔄</div>
-                  <h3 className="processor-results-title">Imágenes Procesadas</h3>
+                  <div className="processor-results-icon">
+                    {/* Aqui va una imagen dejame no toques; dejame le mensaje */}
+                <h3 className="processor-results-title">
+                  {isProcessing ? 'Procesando Imágenes' : 'Imágenes Procesadas'}
+                </h3>
                 </div>
-                <p className="processor-results-stats">
-                  {processedResults.filter(r => r.success).length} de {processedResults.length} procesadas exitosamente
-                </p>
+                </div>
+                {stats.total > 0 && (
+                  <div className="processor-results-stats">
+                    <span className="stats-item">
+                      ✅ {stats.completed} completadas
+                    </span>
+                    {stats.processing > 0 && (
+                      <span className="stats-item processing">
+                        ⏳ {stats.processing} procesando
+                      </span>
+                    )}
+                    {stats.errors > 0 && (
+                      <span className="stats-item error">
+                        ❌ {stats.errors} errores
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
               
               <div className="processor-results-content">
-                <div className="results-grid">
-                  {processedResults.map((result) => (
-                    <div key={result.id} className={`result-item ${result.success ? 'success' : 'error'}`}>
-                      <div className="result-left-section">
-                        {result.success && result.preview_url ? (
-                          <div className="result-image-preview">
-                            <img 
-                              src={result.preview_url} 
-                              alt={result.original_name}
-                              className="preview-image"
-                            />
-                          </div>
+                <div className="results-grid-processing">
+                  {processingFiles.map((file) => (
+                    <div key={file.id} className={`processing-item ${file.state}`}>
+                      <div className="processing-preview">
+                        {file.preview ? (
+                          <img 
+                            src={file.preview} 
+                            alt={file.name}
+                            className="processing-image"
+                          />
                         ) : (
-                          <div className="result-icon">
-                            {result.success ? '✅' : '❌'}
+                          <div className="processing-placeholder">➀ 🖼️</div>
+                        )}
+                        {/* <div className="processing-placeholder">➀ Imagen...</div>*/}
+                      </div>
+                      
+                      <div className="processing-info">
+                        <h5 className="processing-name">{file.name}</h5>
+                        <p className="processing-status">
+                          {getStateMessage(file.state)}
+                        </p>
+                        
+                        {file.state !== PROCESSING_STATES.ERROR && (
+                          <div className="processing-progress">
+                            <div className="progress-bar">
+                              <div 
+                                className="progress-fill" 
+                                style={{ width: `${file.progress}%` }}
+                              ></div>
+                            </div>
+                            <span className="progress-text">{file.progress}%</span>
                           </div>
                         )}
                         
-                        <div className="result-info">
-                          <h5 className="result-name">{result.original_name}</h5>
-                          <p className="result-status">{result.message}</p>
+                        <div className="processing-details">
+                          <div className="size-info">
+                            <span className="size-original">
+                              {(file.originalSize / 1024).toFixed(1)} KB
+                            </span>
+                            {file.currentSize !== file.originalSize && (
+                              <>
+                                <span className="size-arrow">→</span>
+                                <span className="size-final">
+                                  {(file.currentSize / 1024).toFixed(1)} KB
+                                </span>
+                              </>
+                            )}
+                          </div>
                           
-                          {result.success && result.operations && result.operations.length > 0 && (
-                            <div className="result-operations">
-                              {result.operations.map((op, i) => (
-                                <span key={i} className="operation-detail">{op}</span>
-                              ))}
+                          {file.reductionPercentage > 0 && (
+                            <div className="reduction-info">
+                              <span className="reduction-badge">
+                                -{file.reductionPercentage.toFixed(0)}%
+                              </span>
                             </div>
                           )}
                         </div>
-                      </div>
-
-                      {result.success && (
-                        <div className="result-right-section">
-                          <div className="result-stats">
-                            {result.final_size && (
-                              <div className="size-info">
-                                <span className="size-label">Tamaño:</span>
-                                <span className="size-value">{(result.final_size / 1024).toFixed(1)} KB</span>
-                              </div>
-                            )}
-                            
-                            {result.size_reduction !== null && result.size_reduction > 0 && (
-                              <div className="size-reduction">
-                                -{result.size_reduction.toFixed(0)}%
-                              </div>
-                            )}
+                        
+                        {file.operations && file.operations.length > 0 && (
+                          <div className="processing-operations">
+                            {file.operations.map((op, i) => (
+                              <span key={i} className="operation-tag">{op}</span>
+                            ))}
                           </div>
-                        </div>
-                      )}
+                        )}
+                        
+                      </div>
                     </div>
                   ))}
                 </div>
               </div>
               
-              <div className="processor-download-section">
-                <button 
-                  className="processor-download-btn"
-                  onClick={handleDownload}
-                  disabled={!processedResults.some(r => r.success)}
-                >
-                  {processedResults.filter(r => r.success).length === 1 
-                    ? 'Descargar Imagen' 
-                    : 'Descargar ZIP'
-                  }
-                </button>
-              </div>
+              {stats.completed > 0 && !isProcessing && (
+                <div className="processor-download-section">
+                  <div className="download-summary">
+                    <span className="summary-text">
+                      {stats.completed} imagen{stats.completed > 1 ? 'es' : ''} procesada{stats.completed > 1 ? 's' : ''} correctamente
+                    </span>
+                    {stats.averageReduction > 0 && (
+                      <span className="summary-savings">
+                        Reducción promedio: {stats.averageReduction.toFixed(0)}%
+                      </span>
+                    )}
+                  </div>
+                  <button 
+                    className="processor-download-btn"
+                    onClick={handleDownload}
+                    disabled={stats.completed === 0}
+                  >
+                    {stats.completed === 1 
+                      ? 'Descargar Imagen' 
+                      : 'Descargar ZIP'
+                    }
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>

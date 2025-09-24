@@ -6,12 +6,15 @@ export const useProportionalResize = () => {
   const [originalDimensions, setOriginalDimensions] = useState(null);
   const [aspectRatio, setAspectRatio] = useState(1);
   const [isLoadingDimensions, setIsLoadingDimensions] = useState(false);
+  const [isLocked, setIsLocked] = useState(true);
+  const [fileCount, setFileCount] = useState(0);
 
-  // Cargar dimensiones desde el backend
-  const loadImageDimensions = useCallback(async (sessionId) => {
+ 
+  const loadImageDimensions = useCallback(async (sessionId, totalFiles = 1) => {
     if (!sessionId) return;
 
     setIsLoadingDimensions(true);
+    setFileCount(totalFiles);
 
     try {
       const response = await fetch(`http://localhost:5000/api/dimensions/${sessionId}`);
@@ -32,75 +35,86 @@ export const useProportionalResize = () => {
         setOriginalDimensions(dimensions);
         setAspectRatio(dimensions.aspectRatio);
         
-        // Inicializar con las dimensiones originales
-        setWidth(dimensions.width.toString());
-        setHeight(dimensions.height.toString());
-        
-        console.log(`Dimensiones cargadas: ${dimensions.width}x${dimensions.height} (ratio: ${dimensions.aspectRatio.toFixed(2)})`);
+        if (totalFiles === 1 && isLocked) {
+          setWidth(dimensions.width.toString());
+          setHeight(dimensions.height.toString());
+          console.log(`Dimensiones cargadas (1 imagen): ${dimensions.width}x${dimensions.height}`);
+        } else {
+         
+          setWidth('');
+          setHeight('');
+          console.log(`Dimensiones cargadas (${totalFiles} imágenes): campos libres`);
+        }
       }
 
     } catch (error) {
       console.error('Error obteniendo dimensiones:', error);
-      // Valores por defecto
-      const defaultDimensions = { width: 800, height: 600, aspectRatio: 800/600 };
-      setOriginalDimensions(defaultDimensions);
-      setAspectRatio(defaultDimensions.aspectRatio);
-      setWidth('800');
-      setHeight('600');
+      
+      if (totalFiles === 1 && isLocked) {
+        const defaultDimensions = { width: 800, height: 600, aspectRatio: 800/600 };
+        setOriginalDimensions(defaultDimensions);
+        setAspectRatio(defaultDimensions.aspectRatio);
+        setWidth('800');
+        setHeight('600');
+      } else {
+        setWidth('');
+        setHeight('');
+      }
     } finally {
       setIsLoadingDimensions(false);
     }
-  }, []);
+  }, [isLocked]);
+ 
+  const toggleLock = useCallback(() => {
+    const newLockState = !isLocked;
+    setIsLocked(newLockState);
+    
+    if (newLockState && fileCount === 1 && originalDimensions) {
+      
+      setWidth(originalDimensions.width.toString());
+      setHeight(originalDimensions.height.toString());
+      console.log('Candadito cerrado: dimensiones restauradas');
+    } else if (!newLockState) {
+      console.log('Candadito abierto: edición libre');
+    }
+  }, [isLocked, fileCount, originalDimensions]);
 
-  // Manejar cambio de ANCHO - Auto-completa la altura
+
+  const shouldAutoComplete = useCallback(() => {
+    return fileCount === 1 && isLocked;
+  }, [fileCount, isLocked]);
+
+ 
   const handleWidthChange = useCallback((newWidth) => {
     setWidth(newWidth);
     
-    // Auto-completar altura solo si hay un ancho válido y tenemos aspect ratio
-    if (newWidth && aspectRatio && !isNaN(newWidth)) {
+    if (shouldAutoComplete() && newWidth && aspectRatio && !isNaN(newWidth)) {
       const numWidth = parseInt(newWidth);
       if (numWidth > 0) {
         const calculatedHeight = Math.round(numWidth / aspectRatio);
         setHeight(calculatedHeight.toString());
         console.log(`Auto-completado ancho: ${numWidth}px → ${calculatedHeight}px`);
       }
-    } else if (!newWidth) {
-      // Si borra el ancho, limpiar también la altura
+    } else if (!newWidth && shouldAutoComplete()) {
       setHeight('');
     }
-  }, [aspectRatio]);
+  }, [aspectRatio, shouldAutoComplete]);
 
-  // Manejar cambio de ALTURA - Auto-completa el ancho
   const handleHeightChange = useCallback((newHeight) => {
     setHeight(newHeight);
     
-    // Auto-completar ancho solo si hay una altura válida y tenemos aspect ratio
-    if (newHeight && aspectRatio && !isNaN(newHeight)) {
+    if (shouldAutoComplete() && newHeight && aspectRatio && !isNaN(newHeight)) {
       const numHeight = parseInt(newHeight);
       if (numHeight > 0) {
         const calculatedWidth = Math.round(numHeight * aspectRatio);
         setWidth(calculatedWidth.toString());
         console.log(`Auto-completado altura: ${numHeight}px → ${calculatedWidth}px`);
       }
-    } else if (!newHeight) {
-      // Si borra la altura, limpiar también el ancho
+    } else if (!newHeight && shouldAutoComplete()) {
       setWidth('');
     }
-  }, [aspectRatio]);
+  }, [aspectRatio, shouldAutoComplete]);
 
-  // Manejar cambio de ancho SIN auto-completar (para edición libre)
-  const handleWidthChangeOnly = useCallback((newWidth) => {
-    setWidth(newWidth);
-    // NO auto-completar - permite edición libre
-  }, []);
-
-  // Manejar cambio de altura SIN auto-completar (para edición libre)
-  const handleHeightChangeOnly = useCallback((newHeight) => {
-    setHeight(newHeight);
-    // NO auto-completar - permite edición libre  
-  }, []);
-
-  // Aplicar cuadrado rápido
   const makeSquare = useCallback((size) => {
     const targetSize = size || parseInt(width) || parseInt(height) || 400;
     setWidth(targetSize.toString());
@@ -108,30 +122,48 @@ export const useProportionalResize = () => {
     console.log(`Aplicado cuadrado: ${targetSize}x${targetSize}px`);
   }, [width, height]);
 
-  // Resetear a dimensiones originales
   const resetDimensions = useCallback(() => {
-    if (originalDimensions) {
+    if (originalDimensions && fileCount === 1) {
       setWidth(originalDimensions.width.toString());
       setHeight(originalDimensions.height.toString());
+      setIsLocked(true);
       console.log('Dimensiones reseteadas a originales');
+    } else {
+      setWidth('');
+      setHeight('');
     }
-  }, [originalDimensions]);
+  }, [originalDimensions, fileCount]);
 
-  // Aplicar preset manteniendo proporción
   const applyPreset = useCallback((targetWidth) => {
-    if (aspectRatio) {
+    if (aspectRatio && shouldAutoComplete()) {
       const calculatedHeight = Math.round(targetWidth / aspectRatio);
       setWidth(targetWidth.toString());
       setHeight(calculatedHeight.toString());
       console.log(`Preset aplicado: ${targetWidth}px → ${calculatedHeight}px`);
+    } else {
+      setWidth(targetWidth.toString());
+      console.log(`Preset aplicado (modo libre): ${targetWidth}px`);
     }
-  }, [aspectRatio]);
+  }, [aspectRatio, shouldAutoComplete]);
 
-  // Limpiar campos
   const clearDimensions = useCallback(() => {
     setWidth('');
     setHeight('');
+    setFileCount(0);
+    setIsLocked(true); 
   }, []);
+
+  const updateFileCount = useCallback((count) => {
+    setFileCount(count);
+    
+    if (count > 1 && isLocked) {
+      setIsLocked(false);
+      console.log(`Múltiples archivos detectados (${count}): candadito abierto automáticamente`);
+    }
+    else if (count === 1 && !isLocked) {
+      console.log('Una imagen detectada: candadito disponible para cerrar');
+    }
+  }, [isLocked]);
 
   return {
     // Estados
@@ -139,14 +171,16 @@ export const useProportionalResize = () => {
     height,
     originalDimensions,
     isLoadingDimensions,
+    isLocked,
+    fileCount,
     
-    // Funciones principales (con auto-completado)
+    // Funciones principales
     handleWidthChange,
     handleHeightChange,
     
-    // Funciones libres (sin auto-completado)
-    handleWidthChangeOnly,
-    handleHeightChangeOnly,
+    // Control de candadito
+    toggleLock,
+    updateFileCount,
     
     // Funciones especiales
     loadImageDimensions,
@@ -159,9 +193,14 @@ export const useProportionalResize = () => {
     
     // Info
     hasValidDimensions: originalDimensions !== null,
+    shouldAutoComplete: shouldAutoComplete(),
     currentDimensions: {
       width: parseInt(width) || 0,
       height: parseInt(height) || 0
-    }
+    },
+    
+    // Estado de modo
+    editingMode: shouldAutoComplete() ? 'proportional' : 'free',
+    canToggleLock: fileCount === 1 
   };
 };
