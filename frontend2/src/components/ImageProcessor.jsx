@@ -747,3 +747,65 @@ const ImageProcessor = ({ onNavigate }) => {
 };
 
 export default ImageProcessor;
+
+
+
+const handleFiles = async (files) => {
+    setError('');
+    setLoading(true);
+
+    try {
+      const formData = new FormData();
+      files.forEach((file) => {
+        formData.append('files', file);
+      });
+
+      const response = await fetch(`${API_BASE_URL}/upload`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Error subiendo archivos');
+      }
+
+      const data = await response.json();
+      
+      // CORRECCIÓN: Agregar nuevos archivos sin borrar los anteriores
+      const newFiles = data.files;
+      setUploadedFiles(prev => {
+        const combinedFiles = [...prev, ...newFiles];
+        console.log(`Archivos combinados: ${prev.length} anteriores + ${newFiles.length} nuevos = ${combinedFiles.length} total`);
+        return combinedFiles;
+      });
+      
+      // Usar el session_id existente o el nuevo
+      const currentSessionId = sessionId || data.session_id;
+      if (!sessionId) {
+        setSessionId(data.session_id);
+      }
+      
+      // CORRECCIÓN: Procesar solo los nuevos archivos, no reemplazar los anteriores
+      await processFiles(newFiles, {
+        background_removal: backgroundRemoval,
+        resize: resize,
+        width: width ? parseInt(width) : null,
+        height: height ? parseInt(height) : null,
+      });
+      
+      setTimeout(() => {
+        handleProcessWithSession(currentSessionId);
+      }, 500);
+      
+      if (data.errors && data.errors.length > 0) {
+        setError(`Advertencias: ${data.errors.join(', ')}`);
+      }
+
+    } catch (err) {
+      setError(err.message);
+      console.error('Error uploading files:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
