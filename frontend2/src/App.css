@@ -1788,3 +1788,301 @@ body {
   line-height: 1.5;
 }
 
+
+
+/* Estilos adicionales para el botón de procesamiento manual */
+
+.process-btns {
+  display: flex;
+  justify-content: center;
+  margin: 30px 0 20px 0;
+  gap: 15px;
+}
+
+.process-btn {
+  background: linear-gradient(135deg, #7B934D 0%, #566582 100%);
+  color: #FFFFFF;
+  border: none;
+  padding: 14px 32px;
+  border-radius: 12px;
+  font-size: 1.1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 180px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.process-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #566582 0%, #7B934D 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(123, 147, 77, 0.3);
+}
+
+.process-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  background: #ccc;
+  transform: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.process-btn.manual {
+  background: linear-gradient(135deg, #0B1425 0%, #566582 100%);
+  border: 2px solid #7B934D;
+}
+
+.process-btn.manual:hover:not(:disabled) {
+  background: linear-gradient(135deg, #566582 0%, #0B1425 100%);
+  border-color: #566582;
+}
+
+.process-btn.manual:disabled {
+  background: #888;
+  border-color: #666;
+}
+
+/* Ajuste para el contenedor de upload cuando hay botón */
+.processor-upload-section {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 20px;
+}
+
+/* Mensaje de aviso para configuración manual */
+.manual-process-section {
+  margin-top: 15px;
+  padding: 12px;
+  background: rgba(255, 193, 7, 0.1);
+  border-radius: 8px;
+  border: 1px solid rgba(255, 193, 7, 0.3);
+}
+
+.manual-notice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+  color: #856404;
+}
+
+.notice-icon {
+  font-size: 1rem;
+  flex-shrink: 0;
+}
+
+.notice-text {
+  line-height: 1.3;
+}
+
+/* Animaciones y efectos adicionales */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.process-btns {
+  animation: fadeInUp 0.4s ease-out;
+}
+
+.process-btn.manual {
+  position: relative;
+  overflow: hidden;
+}
+
+.process-btn.manual::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg,
+      transparent,
+      rgba(255, 255, 255, 0.2),
+      transparent);
+  transition: left 0.5s ease;
+}
+
+.process-btn.manual:hover::before {
+  left: 100%;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .process-btns {
+    margin: 20px 0;
+  }
+
+  .process-btn {
+    padding: 12px 24px;
+    font-size: 1rem;
+    min-width: 150px;
+  }
+
+  .processor-upload-section {
+    gap: 15px;
+  }
+}
+
+
+/* Estilos adicionales para el botón de procesamiento manual */
+
+.process-btns {
+  display: flex;
+  justify-content: center;
+  margin: 30px 0 20px 0;
+  gap: 15px;
+}
+
+.process-btn {
+  background: linear-gradient(135deg, #7B934D 0%, #566582 100%);
+  color: #FFFFFF;
+  border: none;
+  padding: 14px 32px;
+  border-radius: 12px;
+  font-size: 1.1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 180px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.process-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #566582 0%, #7B934D 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(123, 147, 77, 0.3);
+}
+
+.process-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  background: #ccc;
+  transform: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.process-btn.manual {
+  background: linear-gradient(135deg, #0B1425 0%, #566582 100%);
+  border: 2px solid #7B934D;
+}
+
+.process-btn.manual:hover:not(:disabled) {
+  background: linear-gradient(135deg, #566582 0%, #0B1425 100%);
+  border-color: #566582;
+}
+
+.process-btn.manual:disabled {
+  background: #888;
+  border-color: #666;
+}
+
+/* Ajuste para el contenedor de upload cuando hay botón */
+.processor-upload-section {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 20px;
+}
+
+/* Mensaje de aviso para configuración manual */
+.manual-process-section {
+  margin-top: 15px;
+  padding: 12px;
+  background: rgba(255, 193, 7, 0.1);
+  border-radius: 8px;
+  border: 1px solid rgba(255, 193, 7, 0.3);
+}
+
+.manual-notice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+  color: #856404;
+}
+
+.notice-icon {
+  font-size: 1rem;
+  flex-shrink: 0;
+}
+
+.notice-text {
+  line-height: 1.3;
+}
+
+/* Animaciones y efectos adicionales */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.process-btns {
+  animation: fadeInUp 0.4s ease-out;
+}
+
+.process-btn.manual {
+  position: relative;
+  overflow: hidden;
+}
+
+.process-btn.manual::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg,
+      transparent,
+      rgba(255, 255, 255, 0.2),
+      transparent);
+  transition: left 0.5s ease;
+}
+
+.process-btn.manual:hover::before {
+  left: 100%;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .process-btns {
+    margin: 20px 0;
+  }
+
+  .process-btn {
+    padding: 12px 24px;
+    font-size: 1rem;
+    min-width: 150px;
+  }
+
+  .processor-upload-section {
+    gap: 15px;
+  }
+}
