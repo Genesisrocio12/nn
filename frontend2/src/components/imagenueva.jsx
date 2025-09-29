@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { useProportionalResize } from '../hooks/useProportionalResize';
-import { useProcessingStates } from '../hooks/useProcessingStates';
 import logoImage from './image/TechResources.png';
+import { useProcessingStates } from '../hooks/useProcessingStates';
 
 const ImageProcessor = ({ onNavigate }) => {
   const [backgroundRemoval, setBackgroundRemoval] = useState(false);
@@ -17,319 +17,305 @@ const ImageProcessor = ({ onNavigate }) => {
   const fileInputRef = useRef(null);
   const API_BASE_URL = 'http://localhost:5000/api';
 
-  const {
-    width,
-    height,
-    originalDimensions,
-    isLoadingDimensions,
-    isLocked,
-    fileCount,
-    handleWidthChange,
-    handleHeightChange,
-    toggleLock,
-    updateFileCount,
-    loadImageDimensions,
-    makeSquare,
-    resetDimensions,
-    applyPreset,
-    clearDimensions,
-    hasValidDimensions,
-    shouldAutoComplete,
-    canToggleLock,
-    editingMode
-  } = useProportionalResize();
-
-  const {
-    processingFiles,
-    isProcessing,
-    processFiles,
-    clearProcessing,
-    setProcessingFiles,
-    setIsProcessing,
-    getStats,
-    getStateMessage,
-    PROCESSING_STATES
-  } = useProcessingStates();
-
-  // Actualizar el contador de archivos cuando cambien los uploadedFiles
-  useEffect(() => {
-    updateFileCount(uploadedFiles.length);
-  }, [uploadedFiles.length, updateFileCount]);
-
-  useEffect(() => {
-    if (sessionId && uploadedFiles.length > 0) {
-      loadImageDimensions(sessionId, uploadedFiles.length);
-    }
-  }, [sessionId, uploadedFiles.length, loadImageDimensions]);
-
-  useEffect(() => {
-    if (uploadedFiles.length > 0 && sessionId && !loading && !processing && !switchProcessing) {
-      setSwitchProcessing(true);
-      const timer = setTimeout(() => {
-        handleProcess().finally(() => {
-          setSwitchProcessing(false);
-        });
-      }, 300);
-      
-      return () => clearTimeout(timer);
-    }
-  }, [backgroundRemoval, resize, uploadedFiles.length]);
-
-  const handleDrag = useCallback((e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (e.type === "dragenter" || e.type === "dragover") {
-      setDragActive(true);
-    } else if (e.type === "dragleave") {
-      setDragActive(false);
-    }
-  }, []);
-
-  const handleDrop = useCallback((e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragActive(false);
-    
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      handleFiles(Array.from(e.dataTransfer.files));
-    }
-  }, []);
-
-  const handleFileInput = (e) => {
-    if (e.target.files && e.target.files.length > 0) {
-      handleFiles(Array.from(e.target.files));
-    }
-  };
-
-  const handleFiles = async (files) => {
-    setError('');
-    setLoading(true);
-
-    try {
-      const formData = new FormData();
-      files.forEach((file) => {
-        formData.append('files', file);
-      });
-
-      const response = await fetch(`${API_BASE_URL}/upload`, {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Error subiendo archivos');
-      }
-
-      const data = await response.json();
-      
-      setUploadedFiles(prev => [...prev, ...data.files]);
-      setSessionId(data.session_id);
-      
-      // Iniciar simulación de procesamiento inmediatamente
-      await processFiles(data.files, {
-        background_removal: backgroundRemoval,
-        resize: resize,
-        width: width ? parseInt(width) : null,
-        height: height ? parseInt(height) : null,
-      });
-      
-      setTimeout(() => {
-        handleProcessWithSession(data.session_id);
-      }, 500);
-      
-      if (data.errors && data.errors.length > 0) {
-        setError(`Advertencias: ${data.errors.join(', ')}`);
-      }
-
-    } catch (err) {
-      setError(err.message);
-      console.error('Error uploading files:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleProcess = async () => {
-    if (!sessionId || uploadedFiles.length === 0) {
-      setError('No hay archivos para procesar');
-      return;
-    }
-    
-    // Iniciar simulación de procesamiento con nuevas opciones
-    await processFiles(uploadedFiles, {
-      background_removal: backgroundRemoval,
-      resize: resize,
-      width: width ? parseInt(width) : null,
-      height: height ? parseInt(height) : null,
-    });
-    
-    return await handleProcessWithSession(sessionId);
-  };
-
-  const handleProcessWithSession = async (currentSessionId) => {
-    setError('');
-    setProcessing(true);
-
-    try {
-      const response = await fetch(`${API_BASE_URL}/process`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          session_id: currentSessionId,
-          background_removal: backgroundRemoval,
-          resize: resize,
-          width: width ? parseInt(width) : null,
-          height: height ? parseInt(height) : null,
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Error procesando imágenes');
-      }
-
-      const data = await response.json();
-      
-      // Actualizar el estado de procesamiento con los resultados reales del backend
-      setProcessingFiles(prev => 
-        prev.map(file => {
-          const result = data.results.find(r => r.id === file.id);
-          if (result && result.success) {
-            return {
-              ...file,
-              state: PROCESSING_STATES.COMPLETED,
-              progress: 100,
-              currentSize: result.final_size || file.originalSize,
-              reductionPercentage: result.size_reduction || 0,
-              operations: result.operations || [],
-              preview: result.preview_url || file.preview
-            };
-          } else if (result && !result.success) {
-            return {
-              ...file,
-              state: PROCESSING_STATES.ERROR,
-              error: result.message
-            };
-          }
-          return file;
-        })
-      );
-      
-      setProcessedResults(data.results);
-      
-    } catch (err) {
-      setError(err.message);
-      console.error('Error processing images:', err);
-      
-      // Marcar todos los archivos como error
-      setProcessingFiles(prev => 
-        prev.map(file => ({
-          ...file,
-          state: PROCESSING_STATES.ERROR,
-          error: err.message
-        }))
-      );
-      
-    } finally {
-      setProcessing(false);
-      setIsProcessing(false);
-    }
-  };
-
-  const handleDownload = async () => {
-    if (!sessionId) {
-      setError('No hay archivos para descargar');
-      return;
-    }
-
-    try {
-      const response = await fetch(`${API_BASE_URL}/download/${sessionId}`);
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Error descargando archivos');
-      }
-
-      // Obtener información del archivo desde las cabeceras
-      const contentType = response.headers.get('content-type');
-      const contentDisposition = response.headers.get('content-disposition');
-      
-      // Determinar el nombre del archivo
-      let filename = 'archivo_procesado';
-      if (contentDisposition) {
-        const match = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
-        if (match && match[1]) {
-          filename = match[1].replace(/['"]/g, '');
-        }
-      } else {
-        // Fallback basado en el número de archivos procesados exitosos
-        const successfulCount = processedResults.filter(r => r.success).length;
-        if (successfulCount === 1) {
-          const singleResult = processedResults.find(r => r.success);
-          filename = singleResult?.processed_name || 'imagen_procesada.png';
-        } else {
-          filename = `imagenes_procesadas_${Date.now()}.zip`;
-        }
-      }
-
-      // Crear el blob y descargar
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename;
-      
-      // Agregar al DOM temporalmente para Firefox
-      document.body.appendChild(a);
-      a.click();
-      
-      // Limpiar
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
-
-      console.log(`Descarga completada: ${filename} (${contentType})`);
-
-    } catch (err) {
-      setError(err.message);
-      console.error('Error en descarga:', err);
-    }
-  };
-
-  const openFileSelector = () => {
-    fileInputRef.current?.click();
-  };
-
-  const clearFiles = () => {
-    setUploadedFiles([]);
-    setProcessedResults([]);
-    setSessionId(null);
-    setError('');
-    setSwitchProcessing(false);
-    clearDimensions();
-    clearProcessing();
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
-  };
-
-  const shouldShowResults = processedResults.length > 0 || processingFiles.length > 0;
-  const stats = getStats();
-
-  const handleBackgroundRemovalToggle = () => {
-    if (!processing && !switchProcessing) {
-      setBackgroundRemoval(!backgroundRemoval);
-    }
-  };
-
-  const handleResizeToggle = () => {
-    if (!processing && !switchProcessing) {
-      setResize(!resize);
-    }
-  };
-
+ const {
+     width,
+     height,
+     originalDimensions,
+     isLoadingDimensions,
+     isLocked,
+     fileCount,
+     handleWidthChange,
+     handleHeightChange,
+     toggleLock,
+     updateFileCount,
+     loadImageDimensions,
+     makeSquare,
+     resetDimensions,
+     applyPreset,
+     clearDimensions,
+     hasValidDimensions,
+     shouldAutoComplete,
+     canToggleLock,
+     editingMode
+   } = useProportionalResize();
+ 
+   const {
+     processingFiles,
+     isProcessing,
+     processFiles,
+     clearProcessing,
+     setProcessingFiles,
+     setIsProcessing,
+     getStats,
+     getStateMessage,
+     PROCESSING_STATES
+   } = useProcessingStates();
+ 
+   useEffect(() => {
+     updateFileCount(uploadedFiles.length);
+   }, [uploadedFiles.length, updateFileCount]);
+ 
+   useEffect(() => {
+     if (sessionId && uploadedFiles.length > 0) {
+       loadImageDimensions(sessionId, uploadedFiles.length);
+     }
+   }, [sessionId, uploadedFiles.length, loadImageDimensions]);
+ 
+   const handleDrag = useCallback((e) => {
+     e.preventDefault();
+     e.stopPropagation();
+     if (e.type === "dragenter" || e.type === "dragover") {
+       setDragActive(true);
+     } else if (e.type === "dragleave") {
+       setDragActive(false);
+     }
+   }, []);
+ 
+   const handleDrop = useCallback((e) => {
+     e.preventDefault();
+     e.stopPropagation();
+     setDragActive(false);
+     
+     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+       handleFiles(Array.from(e.dataTransfer.files));
+     }
+   }, []);
+ 
+   const handleFileInput = (e) => {
+     if (e.target.files && e.target.files.length > 0) {
+       handleFiles(Array.from(e.target.files));
+     }
+   };
+ 
+   const handleFiles = async (files) => {
+     setError('');
+     setLoading(true);
+ 
+     try {
+       const formData = new FormData();
+       files.forEach((file) => {
+         formData.append('files', file);
+       });
+ 
+       const response = await fetch(`${API_BASE_URL}/upload`, {
+         method: 'POST',
+         body: formData,
+       });
+ 
+       if (!response.ok) {
+         const errorData = await response.json();
+         throw new Error(errorData.error || 'Error subiendo archivos');
+       }
+ 
+       const data = await response.json();
+       
+       const newFiles = data.files;
+       setUploadedFiles(prev => {
+         const combinedFiles = [...prev, ...newFiles];
+         console.log(`Archivos combinados: ${prev.length} anteriores + ${newFiles.length} nuevos = ${combinedFiles.length} total`);
+         return combinedFiles;
+       });
+       
+       const currentSessionId = sessionId || data.session_id;
+       if (!sessionId) {
+         setSessionId(data.session_id);
+       }
+       
+       if (data.errors && data.errors.length > 0) {
+         setError(`Advertencias: ${data.errors.join(', ')}`);
+       }
+ 
+     } catch (err) {
+       setError(err.message);
+       console.error('Error uploading files:', err);
+     } finally {
+       setLoading(false);
+     }
+   };
+ 
+   const handleProcess = async () => {
+     if (!sessionId || uploadedFiles.length === 0) {
+       setError('No hay archivos para procesar');
+       return;
+     }
+     
+     setError('');
+     setSwitchProcessing(true);
+     
+     try {
+       
+       await processFiles(uploadedFiles, {
+         background_removal: backgroundRemoval,
+         resize: resize,
+         width: width ? parseInt(width) : null,
+         height: height ? parseInt(height) : null,
+       });
+       
+       
+       const result = await handleProcessWithSession(sessionId);
+       return result;
+     } catch (err) {
+       setError(err.message);
+       console.error('Error en procesamiento manual:', err);
+     } finally {
+       setSwitchProcessing(false);
+     }
+   };
+ 
+   const handleProcessWithSession = async (currentSessionId) => {
+     setProcessing(true);
+ 
+     try {
+       const response = await fetch(`${API_BASE_URL}/process`, {
+         method: 'POST',
+         headers: {
+           'Content-Type': 'application/json',
+         },
+         body: JSON.stringify({
+           session_id: currentSessionId,
+           background_removal: backgroundRemoval,
+           resize: resize,
+           width: width ? parseInt(width) : null,
+           height: height ? parseInt(height) : null,
+         }),
+       });
+ 
+       if (!response.ok) {
+         const errorData = await response.json();
+         throw new Error(errorData.error || 'Error procesando imágenes');
+       }
+ 
+       const data = await response.json();
+       
+       setProcessingFiles(prev => 
+         prev.map(file => {
+           const result = data.results.find(r => r.id === file.id);
+           if (result && result.success) {
+             return {
+               ...file,
+               state: PROCESSING_STATES.COMPLETED,
+               progress: 100,
+               currentSize: result.final_size || file.originalSize,
+               reductionPercentage: result.size_reduction || 0,
+               operations: result.operations || [],
+               preview: result.preview_url || file.preview
+             };
+           } else if (result && !result.success) {
+             return {
+               ...file,
+               state: PROCESSING_STATES.ERROR,
+               error: result.message
+             };
+           }
+           return file;
+         })
+       );
+       
+       setProcessedResults(data.results);
+       
+     } catch (err) {
+       setError(err.message);
+       console.error('Error processing images:', err);
+       
+       setProcessingFiles(prev => 
+         prev.map(file => ({
+           ...file,
+           state: PROCESSING_STATES.ERROR,
+           error: err.message
+         }))
+       );
+       
+     } finally {
+       setProcessing(false);
+       setIsProcessing(false);
+     }
+   };
+ 
+   const handleDownload = async () => {
+     if (!sessionId) {
+       setError('No hay archivos para descargar');
+       return;
+     }
+ 
+     try {
+       const response = await fetch(`${API_BASE_URL}/download/${sessionId}`);
+       
+       if (!response.ok) {
+         const errorData = await response.json();
+         throw new Error(errorData.error || 'Error descargando archivos');
+       }
+ 
+       const contentType = response.headers.get('content-type');
+       const contentDisposition = response.headers.get('content-disposition');
+   
+       let filename = 'archivo_procesado';
+       if (contentDisposition) {
+         const match = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+         if (match && match[1]) {
+           filename = match[1].replace(/['"]/g, '');
+         }
+       } else {
+         const successfulCount = processedResults.filter(r => r.success).length;
+         if (successfulCount === 1) {
+           const singleResult = processedResults.find(r => r.success);
+           filename = singleResult?.processed_name || 'imagen_procesada.png';
+         } else {
+           filename = `imagenes_procesadas_${Date.now()}.zip`;
+         }
+       }
+ 
+       const blob = await response.blob();
+       const url = window.URL.createObjectURL(blob);
+       const a = document.createElement('a');
+       a.href = url;
+       a.download = filename;
+       
+       document.body.appendChild(a);
+       a.click();
+       
+       document.body.removeChild(a);
+       window.URL.revokeObjectURL(url);
+ 
+       console.log(`Descarga completada: ${filename} (${contentType})`);
+ 
+     } catch (err) {
+       setError(err.message);
+       console.error('Error en descarga:', err);
+     }
+   };
+ 
+   const openFileSelector = () => {
+     fileInputRef.current?.click();
+   };
+ 
+   const clearFiles = () => {
+     setUploadedFiles([]);
+     setProcessedResults([]);
+     setSessionId(null);
+     setError('');
+     setSwitchProcessing(false);
+     clearDimensions();
+     clearProcessing();
+     if (fileInputRef.current) {
+       fileInputRef.current.value = '';
+     }
+   };
+ 
+   const shouldShowResults = processedResults.length > 0 || processingFiles.length > 0;
+   const stats = getStats();
+ 
+   const handleBackgroundRemovalToggle = () => {
+     if (!processing && !switchProcessing) {
+       setBackgroundRemoval(!backgroundRemoval);
+     }
+   };
+ 
+   const handleResizeToggle = () => {
+     if (!processing && !switchProcessing) {
+       setResize(!resize);
+     }
+   };
+ 
   return (
     <div className="min-h-screen app-background">
       {/* Header */}
@@ -363,7 +349,7 @@ const ImageProcessor = ({ onNavigate }) => {
       <main className="processor-main">
         <div className="processor-container">
           <div className="processor-page-header">
-            {/*Dejame aqui yo pobre algo */}
+             {/* dejame aqui va algo */}
           </div>
           <div className="processor-title-section">
             <h2 className="processor-main-title">Procesador de Imágenes</h2>
@@ -372,14 +358,7 @@ const ImageProcessor = ({ onNavigate }) => {
             </p>
           </div>
 
-          {/* Mensajes de estado */}
-          {error && (
-            <div className="message-error">
-              {error}
-            </div>
-          )}
-
-          {/* Cuadrícula de Contenido */}
+          
           <div className="processor-content-grid">
           
             <div className="processor-upload-section">
@@ -391,7 +370,7 @@ const ImageProcessor = ({ onNavigate }) => {
                 onDrop={handleDrop}
               >
                 <div className="processor-upload-icon">
-                  {/*Dejame aqui yo pobre algo */}
+                  {/* dejame aqui va algo */}
                   {loading ? (
                     <div className="loading-icon">⏳ Cargando...</div>
                   ) : (
@@ -417,7 +396,7 @@ const ImageProcessor = ({ onNavigate }) => {
                     onClick={openFileSelector}
                     disabled={loading || isProcessing}
                   >
-                    {uploadedFiles.length > 0 ? 'Agregar Más' : 'Seleccionar Archivos'}
+                    Seleccionar Archivos 
                   </button>
                   
                   {uploadedFiles.length > 0 && (
@@ -431,6 +410,13 @@ const ImageProcessor = ({ onNavigate }) => {
                   )}
                 </div>
 
+                {/* Mensajes de estado */}
+                {error && (
+                  <div className="message-error">
+                    {error}
+                  </div>
+                )}
+
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -440,8 +426,22 @@ const ImageProcessor = ({ onNavigate }) => {
                   style={{ display: 'none' }}
                 />
               </div>
+
+              {/* Botón de procesar manual - NUEVO POSICIONAMIENTO */}
+              {uploadedFiles.length > 0 && (
+                <div className="process-btns">
+                  <button 
+                    className="process-btn manual"
+                    onClick={handleProcess}
+                    disabled={processing || loading || isProcessing || switchProcessing}
+                  >
+                    {processing || isProcessing || switchProcessing ? 'Procesando...' : 'Procesar Imágenes'}
+                  </button>
+                </div>
+              )}
             </div>
 
+            
             {/* Sección de opciones */}
             <div className="processor-options-section">
               <h3 className="processor-options-title">Opciones de Procesamiento</h3>
@@ -452,7 +452,7 @@ const ImageProcessor = ({ onNavigate }) => {
                     <h4 className="processor-option-title">
                       Eliminar Fondo
                       {switchProcessing && backgroundRemoval && (
-                        <span className="processing-indicator"> 🔄 </span>
+                        <span className="processing-indicator"> ↻ </span>
                       )}
                     </h4>
                     <p className="processor-option-description">
@@ -460,7 +460,7 @@ const ImageProcessor = ({ onNavigate }) => {
                     </p>
                   </div>
                   <div className="processor-option-toggle">
-                    <div 
+                   <div 
                       className={`processor-toggle ${backgroundRemoval ? 'processor-toggle-active' : ''} ${(processing || switchProcessing || isProcessing) ? 'disabled' : ''}`}
                       onClick={handleBackgroundRemovalToggle}
                     >
@@ -476,7 +476,7 @@ const ImageProcessor = ({ onNavigate }) => {
                     <h4 className="processor-option-title">
                       Redimensionar
                       {switchProcessing && resize && (
-                        <span className="processing-indicator"> ⏳ </span>
+                        <span className="processing-indicator"> ↺ </span>
                       )}
                     </h4>
                     <p className="processor-option-description">
@@ -494,17 +494,23 @@ const ImageProcessor = ({ onNavigate }) => {
                 </div>
               </div>
 
-              {/* Panel de dimensiones - Solo aparece cuando resize está ON */}
-              {resize && (
+          {/* Dimensiones personalizadas - Solo aparece cuando resize está ON */}
+          {resize && (
                 <div className="dimensions-panel">
                   <div className="dimensions-header">
                     <h4 className="dimensions-title">Nuevas Dimensiones</h4>
                     
                     <div className="file-status">
                       {fileCount === 1 ? (
-                        <span className="file-count single">📄 1 imagen</span>
+                        <span className="file-count single"> 
+                        <span className="file-count-number">1</span>
+                        <span className="file-conut-text">imagen</span>
+                        </span>
                       ) : (
-                        <span className="file-count multiple">📄 {fileCount} imágenes</span>
+                        <span className="file-count multiple">
+                        <span className="file-count-number">{fileCount}</span>
+                        <span className="file-count-text">imágenes</span>
+                        </span>
                       )}
                     </div>
                   </div>
@@ -570,7 +576,7 @@ const ImageProcessor = ({ onNavigate }) => {
                         type="number"
                         value={width}
                         onChange={(e) => handleWidthChange(e.target.value)}
-                        placeholder={fileCount === 1 ? "Ej: 400" : "Ancho personalizado"}
+                        placeholder={fileCount === 1 ? "Ej: 400" : " Ej: 600"}
                         disabled={processing || switchProcessing || isLoadingDimensions || isProcessing}
                         className="dimension-input"
                       />
@@ -587,25 +593,13 @@ const ImageProcessor = ({ onNavigate }) => {
                         type="number"
                         value={height}
                         onChange={(e) => handleHeightChange(e.target.value)}
-                        placeholder={fileCount === 1 ? "Ej: 300" : "Alto personalizado"}
+                        placeholder={fileCount === 1 ? "Ej: 300" : "Ej: 600"}
                         disabled={processing || switchProcessing || isLoadingDimensions || isProcessing}
                         className="dimension-input"
                       />
                     </div>
                   </div>
 
-                  {fileCount === 1 && isLocked && hasValidDimensions && !processing && !switchProcessing && !isProcessing && (
-                    <div className="quick-actions">
-                      <button 
-                        className="quick-btn original-btn"
-                        onClick={resetDimensions}
-                        disabled={processing || switchProcessing || isProcessing}
-                        title="Restaurar dimensiones originales"
-                      >
-                        Original
-                      </button>
-                    </div>
-                  )}
 
                   {uploadedFiles.length > 0 && !switchProcessing && !isProcessing && (
                     <div className="manual-process-section">
@@ -617,13 +611,6 @@ const ImageProcessor = ({ onNavigate }) => {
                           </span>
                         </div>
                       )}
-                      <button 
-                        className="process-btn manual"
-                        onClick={handleProcess}
-                        disabled={processing || loading || !width || !height || isProcessing}
-                      >
-                        {processing || isProcessing ? 'Procesando...' : 'Procesar Imágenes'}
-                      </button>
                     </div>
                   )}
                 </div>
@@ -631,13 +618,18 @@ const ImageProcessor = ({ onNavigate }) => {
             </div>
           </div>
 
-          {/* Sección de Resultados - Mostrar procesamiento en tiempo real */}
+          {/* Sección de Resultados - Solo aparece cuando hay switches activos y resultados */}
           {shouldShowResults && (
             <div className="processor-results-section">
               <div className="processor-results-header">
+                <div className="processor-results-header-left">
+                  <div className="processor-results-icon">
+                    {/* dejame aqui va algo */}
                 <h3 className="processor-results-title">
                   {isProcessing ? 'Procesando Imágenes' : 'Imágenes Procesadas'}
                 </h3>
+                </div>
+                </div>
                 {stats.total > 0 && (
                   <div className="processor-results-stats">
                     <span className="stats-item">
@@ -669,20 +661,9 @@ const ImageProcessor = ({ onNavigate }) => {
                             className="processing-image"
                           />
                         ) : (
-                          <div className="processing-placeholder">📄</div>
+                          <div className="processing-placeholder">➀ 🖼️</div>
                         )}
-                        
-                        <div className="processing-overlay">
-                          {file.state !== PROCESSING_STATES.COMPLETED && file.state !== PROCESSING_STATES.ERROR && (
-                            <div className="processing-spinner">⏳</div>
-                          )}
-                          {file.state === PROCESSING_STATES.COMPLETED && (
-                            <div className="processing-success">✅</div>
-                          )}
-                          {file.state === PROCESSING_STATES.ERROR && (
-                            <div className="processing-error">❌</div>
-                          )}
-                        </div>
+                        {/* <div className="processing-placeholder">➀ Imagen...</div>*/}
                       </div>
                       
                       <div className="processing-info">
@@ -735,11 +716,6 @@ const ImageProcessor = ({ onNavigate }) => {
                           </div>
                         )}
                         
-                        {file.error && (
-                          <div className="processing-error-msg">
-                            {file.error}
-                          </div>
-                        )}
                       </div>
                     </div>
                   ))}

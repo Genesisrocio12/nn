@@ -6,10 +6,9 @@ export const useProportionalResize = () => {
   const [originalDimensions, setOriginalDimensions] = useState(null);
   const [aspectRatio, setAspectRatio] = useState(1);
   const [isLoadingDimensions, setIsLoadingDimensions] = useState(false);
-  const [isLocked, setIsLocked] = useState(true);
+  const [isLocked, setIsLocked] = useState(true); 
   const [fileCount, setFileCount] = useState(0);
 
- 
   const loadImageDimensions = useCallback(async (sessionId, totalFiles = 1) => {
     if (!sessionId) return;
 
@@ -40,7 +39,6 @@ export const useProportionalResize = () => {
           setHeight(dimensions.height.toString());
           console.log(`Dimensiones cargadas (1 imagen): ${dimensions.width}x${dimensions.height}`);
         } else {
-         
           setWidth('');
           setHeight('');
           console.log(`Dimensiones cargadas (${totalFiles} imágenes): campos libres`);
@@ -49,7 +47,6 @@ export const useProportionalResize = () => {
 
     } catch (error) {
       console.error('Error obteniendo dimensiones:', error);
-      
       if (totalFiles === 1 && isLocked) {
         const defaultDimensions = { width: 800, height: 600, aspectRatio: 800/600 };
         setOriginalDimensions(defaultDimensions);
@@ -64,13 +61,12 @@ export const useProportionalResize = () => {
       setIsLoadingDimensions(false);
     }
   }, [isLocked]);
- 
+
   const toggleLock = useCallback(() => {
     const newLockState = !isLocked;
     setIsLocked(newLockState);
     
     if (newLockState && fileCount === 1 && originalDimensions) {
-      
       setWidth(originalDimensions.width.toString());
       setHeight(originalDimensions.height.toString());
       console.log('Candadito cerrado: dimensiones restauradas');
@@ -79,12 +75,10 @@ export const useProportionalResize = () => {
     }
   }, [isLocked, fileCount, originalDimensions]);
 
-
   const shouldAutoComplete = useCallback(() => {
     return fileCount === 1 && isLocked;
   }, [fileCount, isLocked]);
 
- 
   const handleWidthChange = useCallback((newWidth) => {
     setWidth(newWidth);
     
@@ -126,7 +120,7 @@ export const useProportionalResize = () => {
     if (originalDimensions && fileCount === 1) {
       setWidth(originalDimensions.width.toString());
       setHeight(originalDimensions.height.toString());
-      setIsLocked(true);
+      setIsLocked(true); 
       console.log('Dimensiones reseteadas a originales');
     } else {
       setWidth('');
@@ -166,32 +160,21 @@ export const useProportionalResize = () => {
   }, [isLocked]);
 
   return {
-    // Estados
     width,
     height,
     originalDimensions,
     isLoadingDimensions,
     isLocked,
     fileCount,
-    
-    // Funciones principales
     handleWidthChange,
     handleHeightChange,
-    
-    // Control de candadito
     toggleLock,
     updateFileCount,
-    
-    // Funciones especiales
     loadImageDimensions,
     makeSquare,
-    
-    // Utilidades
     resetDimensions,
     applyPreset,
     clearDimensions,
-    
-    // Info
     hasValidDimensions: originalDimensions !== null,
     shouldAutoComplete: shouldAutoComplete(),
     currentDimensions: {
@@ -199,7 +182,6 @@ export const useProportionalResize = () => {
       height: parseInt(height) || 0
     },
     
-    // Estado de modo
     editingMode: shouldAutoComplete() ? 'proportional' : 'free',
     canToggleLock: fileCount === 1 
   };
