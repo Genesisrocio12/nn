@@ -1,0 +1,9 @@
+chrome://settings/help
+https://googlechromelabs.github.io/chrome-for-testing/
+
+# URL directa para Windows 64-bit (versión 140.0.7339.208)
+https://storage.googleapis.com/chrome-for-testing-public/140.0.7339.208/win64/chromedriver-win64.zip
+
+Extrae el ZIP
+Dentro verás una carpeta chromedriver-win64
+Dentro de esa carpeta está chromedriver.exe

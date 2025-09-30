@@ -1,0 +1,13 @@
+selenium==4.35.0
+pytest==8.4.2
+pytest-selenium==4.1.0
+webdriver-manager==4.0.2
+pillow==11.3.0
+requests==2.32.5
+
+pip install selenium
+pip install pytest
+pip install pytest-selenium
+pip install webdriver-manager
+pip install pillow
+pip install requests
