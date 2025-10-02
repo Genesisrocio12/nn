@@ -312,17 +312,19 @@ def optimize_with_oxipng(image_path):
     except Exception as e:
         return False, f"Error ejecutando oxipng: {str(e)}"
 
-def force_size_reduction_safe(image_path, original_dimensions, target_reduction_percent=10):
+def force_size_reduction_safe(image_path, original_dimensions, target_reduction_percent=15):
+    """Reducir peso SIN cambiar dimensiones - MEJORADO"""
     try:
         original_size = os.path.getsize(image_path)
         target_size = original_size * (1 - target_reduction_percent / 100)
         
         with Image.open(image_path) as img:
-            current_dimensions = img.size
-            
-            if current_dimensions != original_dimensions:
+            # Verificar dimensiones
+            if img.size != original_dimensions:
+                print(f"CORRIGIENDO dimensiones: {img.size} -> {original_dimensions}")
                 img = img.resize(original_dimensions, Image.Resampling.LANCZOS)
             
+            # Detectar transparencia
             has_transparency = False
             if img.mode in ('RGBA', 'LA'):
                 if img.mode == 'RGBA':
@@ -336,36 +338,45 @@ def force_size_reduction_safe(image_path, original_dimensions, target_reduction_
                     has_transparency = True
             
             if has_transparency:
+                # Para PNG con transparencia: múltiples intentos de compresión
                 img.save(image_path, 'PNG', optimize=True, compress_level=9, pnginfo=None)
+                
+                # Si aún no alcanzamos la reducción, reducir calidad de imagen
+                current_size = os.path.getsize(image_path)
+                if current_size > target_size:
+                    # Reducir ligeramente la calidad mediante resampling
+                    temp_img = img.resize(
+                        (img.size[0] - 1, img.size[1] - 1),  # Reducir 1px
+                        Image.Resampling.LANCZOS
+                    )
+                    temp_img = temp_img.resize(
+                        original_dimensions,  # Volver al tamaño original
+                        Image.Resampling.LANCZOS
+                    )
+                    temp_img.save(image_path, 'PNG', optimize=True, compress_level=9)
             else:
+                # Convertir a JPG para mejor compresión (sin transparencia)
                 if img.mode != 'RGB':
                     img = img.convert('RGB')
                 
-                base_path = os.path.splitext(image_path)[0]
-                jpg_path = base_path + '.jpg'
-                
-                for quality in [85, 80, 75, 70]:
-                    img.save(jpg_path, 'JPEG', quality=quality, optimize=True)
-                    current_size = os.path.getsize(jpg_path)
+                # Probar diferentes calidades JPG
+                for quality in [85, 75, 65, 55]:
+                    temp_path = image_path + '.temp.jpg'
+                    img.save(temp_path, 'JPEG', quality=quality, optimize=True)
+                    current_size = os.path.getsize(temp_path)
+                    
                     if current_size < target_size:
+                        # Convertir de vuelta a PNG
+                        with Image.open(temp_path) as jpg_img:
+                            jpg_img.save(image_path, 'PNG', optimize=True)
+                        os.remove(temp_path)
                         break
-                
-                if os.path.exists(image_path):
-                    os.remove(image_path)
-                os.rename(jpg_path, image_path)
-            
-            with Image.open(image_path) as final_check:
-                final_dimensions = final_check.size
-                if final_dimensions != original_dimensions:
-                    corrected = final_check.resize(original_dimensions, Image.Resampling.LANCZOS)
-                    if final_check.mode in ('RGBA', 'LA'):
-                        corrected.save(image_path, 'PNG', optimize=True)
-                    else:
-                        corrected.save(image_path, 'JPEG', quality=80, optimize=True)
+                    os.remove(temp_path)
             
             return True, "Peso reducido manteniendo dimensiones"
             
     except Exception as e:
+        return False, f"Error en reducción segura: {str(e)}"
         return False, f"Error en reducción: {str(e)}"
 
 def remove_background(image_path, output_path):
