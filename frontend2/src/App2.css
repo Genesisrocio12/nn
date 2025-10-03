@@ -1,4 +1,6 @@
-/*-----------------------------------------ImagePage-------------------------------------*/
+/* ============================================================================ 
+#  ESTILOS: ImagePage
+============================================================================ */
 .processor-main {
     padding: 28px 0;
 }
@@ -168,7 +170,7 @@
 }
 
 .processor-clear-btn:hover:not(:disabled) {
-    background: #385385;
+    background: #1F3867;
     transform: translateY(-2px);
 }
 
@@ -353,6 +355,7 @@
     display: flex;
     flex-direction: column;
     text-align: center;
+
 }
 
 .file-count.multiple {
@@ -609,15 +612,22 @@
     color: #FFFFFF;
 }
 
-/* BOTÓN DE PROCESAR MEJORADO */
+.process-btn {
+    background: #566582;
+    display: flex;
+    justify-content: center;
+    margin: 30px 0 20px 0;
+    gap: 15px;
+}
+
 .process-btn {
     background: linear-gradient(135deg, #7B934D 0%, #566582 100%);
     color: #FFFFFF;
     border: none;
     padding: 14px 32px;
     border-radius: 12px;
-    font-size: 1.1rem;
-    font-weight: 600;
+    font-size: 1.2rem;
+    font-weight: 200;
     cursor: pointer;
     transition: all 0.3s ease;
     display: flex;
@@ -628,50 +638,47 @@
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
-/* Estado activo/click */
-.process-btn:active:not(:disabled) {
-    transform: translateY(-1px) scale(0.98);
-    transition: all 0.1s ease;
-}
-
-/* Estado deshabilitado */
 .process-btn:disabled {
     opacity: 0.6;
     cursor: not-allowed;
-    transform: none;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-}
-
-/* Variante manual con efectos especiales */
-.process-btn.manual {
-    background: #566582;
-    background-size: 200% 100%;
-    font-weight: 200;
-    animation: gradientShift 3s ease-in-out infinite;
-}
-
-.process-btn.manual:hover:not(:disabled) {
-    background: #131427ee;
-    background-size: 200% 100%;
-    font-weight: 200;
-    animation: gradientShiftFast 1s ease-in-out infinite;
 }
 
 .process-btns {
-    animation: slideUpFade 0.6s ease-out;
-    margin: 17px 0 20px 0;
-    /* Reducido de 30px a 15px para subirlo */
+    animation: fadeInUp 0.4s ease-out;
     display: flex;
     justify-content: flex-start;
-    /* Cambiado de center a flex-start para mover a la izquierda */
     padding-left: 400px;
-    /* Agregado para mover más a la izquierda */
 }
 
-/* Accesibilidad mejorada */
-.process-btn:focus-visible {
-    outline: 3px solid rgba(123, 147, 77, 0.5);
-    outline-offset: 2px;
+.process-btn.manual {
+    background: #566582;
+}
+
+.process-btn.manual:hover:not(:disabled) {
+    background: #2c4169;
+}
+
+.process-btn.manual:disabled {
+    background: #888;
+    border-color: #666;
+}
+
+.process-btn.manual::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg,
+            transparent,
+            rgba(255, 255, 255, 0.2),
+            transparent);
+    transition: left 0.5s ease;
+}
+
+.process-btn.manual:hover::before {
+    left: 100%;
 }
 
 .processor-results-section {
@@ -831,11 +838,11 @@
 }
 
 .processing-item {
-    background: rgba(42, 63, 87, 0.3);
+    background: rgba(70, 78, 146, 0.3);
     display: flex;
     border-radius: 12px;
     padding: 20px;
-    box-shadow: 0 2px 10px rgba(252, 94, 3, 0.1);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
     transition: all 0.3s ease;
     border: 2px solid transparent;
     display: flex;
@@ -1036,16 +1043,139 @@
 }
 
 .summary-text {
-    color: #FFFFFF;
+    color: #46495a;
     font-size: 1rem;
-    font-weight: 500;
+    font-weight: 400;
+    letter-spacing: 0.3px;
 }
 
+/* Badge mejorado de reducción promedio */
 .summary-savings {
-    color: #7B934D;
-    font-size: 0.9rem;
-    font-weight: 400;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 25px;
+    background: linear-gradient(135deg,
+            rgba(123, 147, 77, 0.25) 0%,
+            rgba(86, 101, 130, 0.25) 50%,
+            rgba(123, 147, 77, 0.25) 100%);
+    background-size: 200% 100%;
+
+    border-radius: 6px;
+    font-size: 0.95rem;
+    font-weight: 500;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    animation: gradientShift 4s ease infinite;
+    width: fit-content;
 }
+
+/* Animación de gradiente suave */
+@keyframes gradientShift {
+
+    0%,
+    100% {
+        background-position: 0% 50%;
+    }
+
+    50% {
+        background-position: 100% 50%;
+    }
+}
+
+/* Brillo interno sutil */
+.summary-savings::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg,
+            transparent,
+            rgba(255, 255, 255, 0.1),
+            transparent);
+    animation: shine 3s infinite;
+}
+
+@keyframes shine {
+    0% {
+        left: -100%;
+    }
+
+    50%,
+    100% {
+        left: 100%;
+    }
+}
+
+/* Estilos para el texto dentro del badge */
+.summary-savings span {
+    position: relative;
+    z-index: 2;
+}
+
+/* Texto "Reducción promedio:" */
+.summary-savings-label {
+    color: #B8C5D1;
+    font-weight: 400;
+    font-size: 0.9rem;
+}
+
+/* Porcentaje con gradiente de color */
+.summary-savings-value {
+    background: linear-gradient(135deg, #7B934D 0%, #566582 50%, #7B934D 100%);
+    background-size: 200% 100%;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    font-weight: 700;
+    font-size: 1.2rem;
+    animation: textGradient 3s ease infinite;
+    letter-spacing: 0.5px;
+}
+
+@keyframes textGradient {
+
+    0%,
+    100% {
+        background-position: 0% 50%;
+    }
+
+    50% {
+        background-position: 100% 50%;
+    }
+}
+
+/* Ícono decorativo opcional */
+.summary-savings-icon {
+    font-size: 1.1rem;
+    animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+
+    0%,
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+
+    50% {
+        transform: scale(1.1);
+        opacity: 0.8;
+    }
+}
+
+/* Hover effect */
+.summary-savings:hover {
+    border-color: rgba(123, 147, 77, 0.6);
+    box-shadow: 0 6px 16px rgba(123, 147, 77, 0.25);
+    transform: translateY(-1px);
+    transition: all 0.3s ease;
+}
+
 
 .processor-download-btn {
     background: #7B934D;
