@@ -776,3 +776,104 @@ const ImageProcessor = ({ onNavigate }) => {
 };
 
 export default ImageProcessor;
+
+
+
+{file.reductionPercentage !== 0 && (
+                            <div className="reduction-info">
+                              <span className={`reduction-badge ${file.reductionPercentage > 0 ? 'reduction-positive' : 'reduction-negative'}`}>
+                                {file.reductionPercentage > 0 
+                                  ? `-${Math.min(file.reductionPercentage, 100).toFixed(0)}%`
+                                  : `+${Math.min(Math.abs(file.reductionPercentage), 100).toFixed(0)}%`
+                                }
+                              </span>
+                            </div>
+                          )}
+                        </div>
+
+
+
+
+    {file.reductionPercentage !== 0 && (
+                            <div className="reduction-info">
+                              <span className={`reduction-badge ${file.reductionPercentage < 0 ? 'increase' : ''}`}>
+                                {file.reductionPercentage > 0 ? '-' : '+'}{Math.abs(file.reductionPercentage).toFixed(0)}%
+                              </span>
+                            </div>
+                          )}
+
+
+
+
+
+
+
+
+
+                          setProcessingFiles(prev => 
+         prev.map(file => {
+           const result = data.results.find(r => r.id === file.id);
+           if (result && result.success) {
+             // Calcular cambio de tamaño correctamente
+             const sizeChange = result.size_change !== undefined 
+               ? result.size_change 
+               : result.size_reduction 
+                 ? -result.size_reduction 
+                 : 0;
+             
+             return {
+               ...file,
+               state: PROCESSING_STATES.COMPLETED,
+               progress: 100,
+               currentSize: result.final_size || file.originalSize,
+               reductionPercentage: -sizeChange, // Negativo = reducción, Positivo = aumento
+               operations: result.operations || [],
+               preview: result.preview_url || file.preview
+             };
+           } else if (result && !result.success) {
+             return {
+               ...file,
+               state: PROCESSING_STATES.ERROR,
+               error: result.message
+             };
+           }
+           return file;
+         })
+       );
+  
+
+       setProcessingFiles(prev => 
+         prev.map(file => {
+           const result = data.results.find(r => r.id === file.id);
+           if (result && result.success) {
+             // size_change: positivo = aumento, negativo = reducción
+             const sizeChangePercent = result.size_change || 0;
+             
+             return {
+               ...file,
+               state: PROCESSING_STATES.COMPLETED,
+               progress: 100,
+               currentSize: result.final_size || file.originalSize,
+               sizeChange: sizeChangePercent, // Guardar el cambio real
+               operations: result.operations || [],
+               preview: result.preview_url || file.preview
+             };
+           } else if (result && !result.success) {
+             return {
+               ...file,
+               state: PROCESSING_STATES.ERROR,
+               error: result.message
+             };
+           }
+           return file;
+         })
+       );
+
+
+  {file.sizeChange !== undefined && file.sizeChange !== 0 && (
+                            <div className="reduction-info">
+                              <span className={`reduction-badge ${file.sizeChange > 0 ? 'increase' : ''}`}>
+                                {file.sizeChange > 0 ? '+' : ''}{file.sizeChange.toFixed(0)}%
+                              </span>
+                            </div>
+                          )}

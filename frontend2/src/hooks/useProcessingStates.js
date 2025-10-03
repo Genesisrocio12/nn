@@ -143,26 +143,31 @@ export const useProcessingStates = () => {
   }, []);
 
   const calculateReduction = (originalSize, backgroundRemoval, resize) => {
-    let baseReduction = 3; 
-    const pngOptimization = Math.random() * 6 + 2; 
-    baseReduction += pngOptimization;
-    if (backgroundRemoval) {
-      const bgReduction = Math.random() * 20 + 15; 
-      baseReduction += bgReduction;
-    }
-    if (resize) {
-      const resizeReduction = Math.random() * 25 + 20; 
-      baseReduction += resizeReduction;
-    }
-    if (!backgroundRemoval && !resize) {
-      baseReduction = 3 + Math.random() * 9; 
-    }
-    const variation = Math.random() * 4 - 2; 
-    let finalReduction = baseReduction + variation;
-    finalReduction = Math.max(2, Math.min(85, finalReduction));
+  let baseReduction = 3; 
+  const pngOptimization = Math.random() * 6 + 2; 
+  baseReduction += pngOptimization;
+  
+  if (backgroundRemoval) {
+    const bgReduction = Math.random() * 20 + 15; 
+    baseReduction += bgReduction;
+  }
+  
+  if (resize) {
+    const resizeReduction = Math.random() * 25 + 20; 
+    baseReduction += resizeReduction;
+  }
+  
+  if (!backgroundRemoval && !resize) {
+    baseReduction = 3 + Math.random() * 9; 
+  }
+  
+  const variation = Math.random() * 4 - 2; 
+  let finalReduction = baseReduction + variation;
 
-    return Math.round(finalReduction * 100) / 100;
-  };
+  finalReduction = Math.min(finalReduction, 100);
+
+  return Math.round(finalReduction * 100) / 100;
+};
 
   const getStats = useCallback(() => {
     const total = processingFiles.length;

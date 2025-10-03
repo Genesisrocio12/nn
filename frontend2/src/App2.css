@@ -988,12 +988,24 @@
 }
 
 .reduction-badge {
-    background: #7B934D;
-    color: #FFFFFF;
     font-size: 0.75rem;
     font-weight: 600;
     padding: 2px 8px;
     border-radius: 12px;
+}
+
+/* VERDE - Cuando el archivo SE REDUCE (lo ideal) */
+.reduction-badge.reduction-negative {
+    background: linear-gradient(135deg, #7B934D 0%, #5A7A3C 100%);
+    color: #FFFFFF;
+    border: 1px solid rgba(123, 147, 77, 0.4);
+}
+
+/* ROJO - Cuando el archivo AUMENTA de tamaño */
+.reduction-badge.reduction-positive {
+    background: linear-gradient(135deg, #E57373 0%, #D32F2F 100%);
+    color: #FFFFFF;
+    border: 1px solid rgba(229, 115, 115, 0.4);
 }
 
 .processing-operations {
