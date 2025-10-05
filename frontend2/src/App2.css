@@ -355,7 +355,6 @@
     display: flex;
     flex-direction: column;
     text-align: center;
-
 }
 
 .file-count.multiple {
@@ -988,24 +987,58 @@
 }
 
 .reduction-badge {
+    color: #FFFFFF;
     font-size: 0.75rem;
     font-weight: 600;
-    padding: 2px 8px;
+    padding: 4px 12px;
     border-radius: 12px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
 }
 
-/* VERDE - Cuando el archivo SE REDUCE (lo ideal) */
-.reduction-badge.reduction-negative {
-    background: linear-gradient(135deg, #7B934D 0%, #5A7A3C 100%);
-    color: #FFFFFF;
-    border: 1px solid rgba(123, 147, 77, 0.4);
-}
-
-/* ROJO - Cuando el archivo AUMENTA de tamaño */
 .reduction-badge.reduction-positive {
-    background: linear-gradient(135deg, #E57373 0%, #D32F2F 100%);
-    color: #FFFFFF;
-    border: 1px solid rgba(229, 115, 115, 0.4);
+    background: #c52737;
+    border: 1px solid #c82333;
+    box-shadow: 0 2px 8px rgba(220, 53, 69, 0.3);
+}
+
+.reduction-badge.reduction-negative {
+    background: #7B934D;
+    border: 1px solid #6B8240;
+    box-shadow: 0 2px 8px rgba(123, 147, 77, 0.3);
+}
+
+.reduction-badge.reduction-negative {
+    animation: pulseGreen 2s ease-in-out infinite;
+}
+
+@keyframes pulseGreen {
+
+    0%,
+    100% {
+        box-shadow: 0 2px 8px rgba(123, 147, 77, 0.3);
+    }
+
+    50% {
+        box-shadow: 0 2px 12px rgba(123, 147, 77, 0.5);
+    }
+}
+
+.reduction-badge.reduction-positive {
+    animation: pulseRed 2s ease-in-out infinite;
+}
+
+@keyframes pulseRed {
+
+    0%,
+    100% {
+        box-shadow: 0 2px 8px rgba(220, 53, 69, 0.3);
+    }
+
+    50% {
+        box-shadow: 0 2px 12px rgba(220, 53, 69, 0.5);
+    }
 }
 
 .processing-operations {
@@ -1061,7 +1094,6 @@
     letter-spacing: 0.3px;
 }
 
-/* Badge mejorado de reducción promedio */
 .summary-savings {
     display: inline-flex;
     align-items: center;
@@ -1072,7 +1104,6 @@
             rgba(86, 101, 130, 0.25) 50%,
             rgba(123, 147, 77, 0.25) 100%);
     background-size: 200% 100%;
-
     border-radius: 6px;
     font-size: 0.95rem;
     font-weight: 500;
@@ -1083,7 +1114,6 @@
     width: fit-content;
 }
 
-/* Animación de gradiente suave */
 @keyframes gradientShift {
 
     0%,
@@ -1096,7 +1126,6 @@
     }
 }
 
-/* Brillo interno sutil */
 .summary-savings::before {
     content: '';
     position: absolute;
@@ -1122,20 +1151,17 @@
     }
 }
 
-/* Estilos para el texto dentro del badge */
 .summary-savings span {
     position: relative;
     z-index: 2;
 }
 
-/* Texto "Reducción promedio:" */
 .summary-savings-label {
     color: #B8C5D1;
     font-weight: 400;
     font-size: 0.9rem;
 }
 
-/* Porcentaje con gradiente de color */
 .summary-savings-value {
     background: linear-gradient(135deg, #7B934D 0%, #566582 50%, #7B934D 100%);
     background-size: 200% 100%;
@@ -1160,7 +1186,6 @@
     }
 }
 
-/* Ícono decorativo opcional */
 .summary-savings-icon {
     font-size: 1.1rem;
     animation: pulse 2s ease-in-out infinite;
@@ -1180,14 +1205,12 @@
     }
 }
 
-/* Hover effect */
 .summary-savings:hover {
     border-color: rgba(123, 147, 77, 0.6);
     box-shadow: 0 6px 16px rgba(123, 147, 77, 0.25);
     transform: translateY(-1px);
     transition: all 0.3s ease;
 }
-
 
 .processor-download-btn {
     background: #7B934D;
