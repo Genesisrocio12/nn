@@ -428,21 +428,13 @@ def process_single_image(image_info, session_folder, options):
                     success, message = optimize_png_only(current_path, final_path)
                     result['operations'].append(message)
         
-        # VERIFICAR que el archivo final existe
         if os.path.exists(final_path):
-            # OBTENER tamaño final (esto faltaba!)
             final_size = os.path.getsize(final_path)
-            
-            # CALCULAR porcentaje de cambio
-            # Si final_size < original_size → reducción (positivo)
-            # Si final_size > original_size → aumento (negativo)
-            # Positivo = aumentó, Negativo = redujo
-            size_reduction = ((final_size - original_size) / original_size) * 100
-            
-            # LIMITAR: Si aumentó más del 100%, mostrar solo +100%
-            # Log mejorado
-            if size_reduction < 0:  # Cambiar de > a 
-                print(f"✓ {image_info['original_name']}: {original_size//1024}KB -> {final_size//1024}KB ({size_reduction:.1f}%)")
+          
+            size_reduction = ((original_size - final_size) / original_size) * 100
+
+            if size_reduction < 0:  
+                size_reduction = ((original_size - final_size) / original_size) * 100
             else:
                 print(f"⚠ {image_info['original_name']}: {original_size//1024}KB -> {final_size//1024}KB (+{size_reduction:.1f}%)")
                         
@@ -454,8 +446,7 @@ def process_single_image(image_info, session_folder, options):
             result['size_reduction'] = size_reduction
             result['path'] = final_path
             result['preview_url'] = preview_url
-            
-            # Log mejorado
+        
             if size_reduction > 0:
                 print(f"✓ {image_info['original_name']}: {original_size//1024}KB -> {final_size//1024}KB (-{size_reduction:.1f}%)")
             else:
@@ -918,7 +909,7 @@ def get_image_dimensions(session_id):
     except Exception as e:
         return jsonify({'error': f'Error obteniendo dimensiones: {str(e)}'}), 500
 
-# ENDPOINT ADICIONAL: Limpieza manual (útil para testing)
+# ENDPOINT ADICIONAL: Limpieza manual 
 
 @app.route('/api/cleanup/<session_id>', methods=['DELETE'])
 def manual_cleanup(session_id):
@@ -972,37 +963,6 @@ if __name__ == '__main__':
     print(f" Formatos soportados: {', '.join(sorted(ALLOWED_EXTENSIONS))}")
     print(f" Servidor: http://localhost:5000")
     print(f" Health check: http://localhost:5000/api/health")
-    print(f" REMBG disponible: {REMBG_AVAILABLE}")
     print("=" * 70)
     
     app.run(debug=True, host='0.0.0.0', port=5000)
-
-
-
-    if os.path.exists(final_path):
-            final_size = os.path.getsize(final_path)
-            # Calcular cambio: negativo = reducción, positivo = aumento
-            size_change = ((final_size - original_size) / original_size) * 100
-            preview_url = create_image_preview_data(final_path)
-            
-            result['success'] = True
-            result['message'] = 'Procesado exitosamente'
-            result['final_size'] = final_size
-            result['size_reduction'] = -size_change  # Mantener compatibilidad (negativo = reducción)
-            result['size_change'] = size_change  # Nuevo campo: positivo = aumento, negativo = reducción
-            result['path'] = final_path
-            result['preview_url'] = preview_url
-
-
-    if os.path.exists(final_path):
-            final_size = os.path.getsize(final_path)
-            # Calcular cambio porcentual: positivo = aumento, negativo = reducción
-            size_change_percent = ((final_size - original_size) / original_size) * 100
-            preview_url = create_image_preview_data(final_path)
-            
-            result['success'] = True
-            result['message'] = 'Procesado exitosamente'
-            result['final_size'] = final_size
-            result['size_change'] = size_change_percent  # Positivo = aumento, Negativo = reducción
-            result['path'] = final_path
-            result['preview_url'] = preview_url
